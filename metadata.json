@@ -1,0 +1,6 @@
+{
+  "name": "SwiftCopy",
+  "description": "High-performance file copy engine dashboard and simulation, featuring real-time throughput monitoring and file fidelity verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
