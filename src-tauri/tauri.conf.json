@@ -1,0 +1,46 @@
+{
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "http://localhost:3000",
+    "distDir": "../dist"
+  },
+  "package": {
+    "productName": "swiftcopy",
+    "version": "0.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "shell": {
+        "all": false,
+        "open": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "targets": ["msi"],
+      "identifier": "com.swiftcopy.dev",
+      "icon": [],
+      "resources": [],
+      "windows": {
+        "wix": {
+          "language": "en-US",
+          "machineKey": false
+        }
+      }
+    },
+    "security": {
+      "csp": null
+    },
+    "windows": [
+      {
+        "fullscreen": false,
+        "resizable": true,
+        "title": "SwiftCopy Enterprise",
+        "width": 1024,
+        "height": 768
+      }
+    ]
+  }
+}

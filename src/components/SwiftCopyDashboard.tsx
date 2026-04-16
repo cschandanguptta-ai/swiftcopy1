@@ -59,51 +59,14 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { FileTask, SimulationState, DriveMetrics } from '@/src/types';
-
-// Helper to format bytes
-const formatBytes = (bytes: number, decimals = 2) => {
-  if (bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
-};
-
-// Mock data for the throughput chart
-const generateChartData = (throughput: number) => {
-  return Array.from({ length: 30 }, (_, i) => ({
-    time: i,
-    speed: throughput * (0.9 + Math.random() * 0.2) / (1024 * 1024 * 1024) // GB/s
-  }));
-};
-
-const ERROR_MESSAGES = [
-  "ERROR_SHARING_VIOLATION: File held by another process.",
-  "ERROR_DISK_FULL: Insufficient space on target volume.",
-  "ERROR_CRC: Cyclic redundancy check failed (Hardware error).",
-  "ERROR_NETWORK_TIMEOUT: Connection to remote storage lost.",
-  "ERROR_ACCESS_DENIED: Insufficient permissions for ACL replication."
-];
+import { formatBytes, generateChartData } from '@/src/lib/utils';
+import { useSimulation } from '@/src/hooks/useSimulation';
+import { useIpcEngine } from '@/src/hooks/useIpcEngine';
+import { mockTasks } from '@/src/tests/fixtures/tasks';
 
 export default function SwiftCopyDashboard() {
-  const [state, setState] = useState<SimulationState>({
-    tasks: [],
-    totalBytes: 0,
-    copiedBytes: 0,
-    startTime: null,
-    elapsedTime: 0,
-    isPaused: true,
-    currentThroughput: 0,
-    peakThroughput: 0,
-    fidelityStats: {
-      adsPreserved: 0,
-      aclsCopied: 0,
-      vssSnapshots: 0,
-      symlinksPreserved: 0
-    }
-  });
-
+  const { state, startSimulation, retryTask, togglePause } = useSimulation();
+  const { isBridged, pingRust } = useIpcEngine();
   const [chartData, setChartData] = useState(generateChartData(0));
   const [activeTab, setActiveTab] = useState('queue');
   const [isInstalling, setIsInstalling] = useState(false);
@@ -121,6 +84,7 @@ export default function SwiftCopyDashboard() {
       'Finalizing Registry entries...',
       'System Integration Complete.'
     ];
+    setInstallStep(steps[0]);
 
     let currentStep = 0;
     const interval = setInterval(() => {
@@ -140,72 +104,6 @@ export default function SwiftCopyDashboard() {
     }, 50);
   };
 
-  // Simulation Logic
-  useEffect(() => {
-    if (state.isPaused) return;
-
-    const interval = setInterval(() => {
-      setState(prev => {
-        const allFinished = prev.tasks.every(t => t.status === 'Done' || t.status === 'Failed');
-        if (allFinished && prev.tasks.length > 0) {
-          return { ...prev, isPaused: true, currentThroughput: 0 };
-        }
-
-        const newThroughput = 3.8 * 1024 * 1024 * 1024 * (0.95 + Math.random() * 0.1); // ~3.8 GB/s
-        const increment = newThroughput / 10; // 100ms interval
-        
-        // Update tasks progress
-        let addedCopied = 0;
-        const updatedTasks = prev.tasks.map(task => {
-          if (task.status === 'Done' || task.status === 'Failed') return task;
-          
-          // Random error simulation (0.5% chance per tick)
-          if (Math.random() < 0.005) {
-            const error = ERROR_MESSAGES[Math.floor(Math.random() * ERROR_MESSAGES.length)];
-            toast.error("File Operation Failed", {
-              description: `${task.sourcePath.split('\\').pop()}: ${error}`,
-              duration: 5000,
-            });
-            return { ...task, status: 'Failed', error };
-          }
-
-          const taskProgress = Math.min(task.progress + (increment / prev.totalBytes) * 5, 1);
-          let status = task.status;
-          if (taskProgress > 0.1 && status === 'Pending') status = 'Reading';
-          if (taskProgress > 0.4 && status === 'Reading') status = 'Writing';
-          if (taskProgress > 0.8 && status === 'Writing') status = 'Verifying';
-          if (taskProgress === 1) status = 'Done';
-          
-          if (status !== 'Failed') {
-            addedCopied += (taskProgress - task.progress) * task.size;
-          }
-
-          return { ...task, progress: taskProgress, status, throughput: newThroughput / 4 };
-        });
-
-        const newCopied = Math.min(prev.copiedBytes + addedCopied, prev.totalBytes);
-
-        // Update fidelity stats
-        const newFidelity = { ...prev.fidelityStats };
-        if (Math.random() > 0.9) newFidelity.adsPreserved++;
-        if (Math.random() > 0.95) newFidelity.aclsCopied++;
-        if (Math.random() > 0.98) newFidelity.vssSnapshots++;
-
-        return {
-          ...prev,
-          copiedBytes: newCopied,
-          currentThroughput: newThroughput,
-          peakThroughput: Math.max(prev.peakThroughput, newThroughput),
-          elapsedTime: prev.elapsedTime + 0.1,
-          tasks: updatedTasks,
-          fidelityStats: newFidelity
-        };
-      });
-    }, 100);
-
-    return () => clearInterval(interval);
-  }, [state.isPaused, state.totalBytes]);
-
   // Update chart data
   useEffect(() => {
     if (state.isPaused) return;
@@ -221,43 +119,19 @@ export default function SwiftCopyDashboard() {
     return () => clearInterval(interval);
   }, [state.isPaused, state.currentThroughput]);
 
-  const startSimulation = () => {
-    const mockTasks: FileTask[] = [
-      { id: '1', sourcePath: 'C:\\Data\\Project_A.iso', destPath: 'D:\\Backup\\Project_A.iso', size: 15 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 2, hasAcl: true, isLocked: false },
-      { id: '2', sourcePath: 'C:\\Users\\Admin\\Documents\\Database.mdf', destPath: 'D:\\Backup\\Database.mdf', size: 42 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 0, hasAcl: true, isLocked: true },
-      { id: '3', sourcePath: 'C:\\Photos\\2024_Trip.zip', destPath: 'D:\\Backup\\2024_Trip.zip', size: 8 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 5, hasAcl: false, isLocked: false },
+  const startSimulationHandler = () => {
+    const localMockTasks: FileTask[] = [
+      ...mockTasks,
       { id: '4', sourcePath: 'C:\\System\\Registry_Hive', destPath: 'D:\\Backup\\Registry_Hive', size: 2 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 1, hasAcl: true, isLocked: true },
       { id: '5', sourcePath: 'C:\\Work\\Project_B.vmdk', destPath: 'D:\\Backup\\Project_B.vmdk', size: 25 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 0, hasAcl: true, isLocked: false },
       { id: '6', sourcePath: 'C:\\Media\\Video_Archive.tar', destPath: 'D:\\Backup\\Video_Archive.tar', size: 12 * 1024 * 1024 * 1024, progress: 0, status: 'Pending', throughput: 0, adsCount: 3, hasAcl: false, isLocked: false },
     ];
-
-    setState({
-      tasks: mockTasks,
-      totalBytes: mockTasks.reduce((acc, t) => acc + t.size, 0),
-      copiedBytes: 0,
-      startTime: Date.now(),
-      elapsedTime: 0,
-      isPaused: false,
-      currentThroughput: 0,
-      peakThroughput: 0,
-      fidelityStats: {
-        adsPreserved: 0,
-        aclsCopied: 0,
-        vssSnapshots: 0,
-        symlinksPreserved: 0
-      }
-    });
+    startSimulation(localMockTasks);
     setChartData(generateChartData(0));
-    toast.success("Engine Started", { description: "Work-stealing scheduler initialized with 16 threads." });
   };
 
-  const retryTask = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      tasks: prev.tasks.map(t => t.id === id ? { ...t, status: 'Pending', progress: 0, error: undefined } : t),
-      isPaused: false
-    }));
-    toast.info("Retrying Task", { description: "Task re-queued for processing." });
+  const retryTaskHandler = (id: string) => {
+    retryTask(id);
   };
 
   const progressPercent = state.totalBytes > 0 ? (state.copiedBytes / state.totalBytes) * 100 : 0;
@@ -304,7 +178,7 @@ export default function SwiftCopyDashboard() {
                 <Settings className="w-4 h-4" />
               </Button>
               <Button 
-                onClick={state.tasks.length === 0 || (state.copiedBytes >= state.totalBytes) ? startSimulation : () => setState(p => ({ ...p, isPaused: !p.isPaused }))}
+                onClick={state.tasks.length === 0 || (state.copiedBytes >= state.totalBytes) ? startSimulationHandler : togglePause}
                 className="rounded-full px-6 shadow-lg shadow-primary/20"
               >
                 {state.isPaused ? <Play className="w-4 h-4 mr-2 fill-current" /> : <Pause className="w-4 h-4 mr-2 fill-current" />}
@@ -483,9 +357,14 @@ export default function SwiftCopyDashboard() {
                             </TableCell>
                             <TableCell className="font-mono text-xs">{formatBytes(task.size)}</TableCell>
                             <TableCell>
-                              <Badge variant="outline" className="text-[9px] border-green-500/30 text-green-500 bg-green-500/5">
-                                BLAKE3_MATCH
-                              </Badge>
+                              <div className="flex flex-col gap-1">
+                                <Badge variant="outline" className="text-[9px] w-fit border-green-500/30 text-green-500 bg-green-500/5">
+                                  BLAKE3_MATCH
+                                </Badge>
+                                <span className="text-[8px] font-mono text-muted-foreground truncate max-w-[120px]">
+                                  {Math.random().toString(16).substring(2, 10).toUpperCase()}...{Math.random().toString(16).substring(2, 6).toUpperCase()}
+                                </span>
+                              </div>
                             </TableCell>
                             <TableCell>
                               <span className="text-[10px] font-bold text-green-500">SUCCESS</span>
@@ -591,19 +470,31 @@ export default function SwiftCopyDashboard() {
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-mono">
                           <span className="text-muted-foreground">IPC_CHANNEL</span>
-                          <span className="text-blue-500">THROTTLED_250MS</span>
+                          <span className={isBridged ? "text-green-500" : "text-blue-500"}>
+                            {isBridged ? "CONNECTED" : "THROTTLED_250MS"}
+                          </span>
                         </div>
                         <Separator className="bg-border/50" />
                         <p className="text-[10px] text-muted-foreground leading-relaxed italic">
                           Architecture uses an elevated background service to minimize UAC friction. Frontend communicates via throttled named pipes to prevent IPC bottlenecks.
                         </p>
                       </div>
-                      <Button 
-                        className="w-full text-xs font-bold uppercase tracking-wider h-10"
-                        onClick={runInstallation}
-                      >
-                        Download Native Installer (.msi)
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button 
+                          className="w-full text-xs font-bold uppercase tracking-wider h-10"
+                          onClick={runInstallation}
+                        >
+                          Download Native Installer (.msi)
+                        </Button>
+                        <Button 
+                          variant="secondary"
+                          className="w-full text-xs font-bold uppercase tracking-wider h-10 gap-2 border border-primary/20 hover:bg-primary/20 hover:text-primary transition-all"
+                          onClick={pingRust}
+                        >
+                          <Activity className="w-3 h-3" />
+                          Test Native IPC
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
@@ -614,7 +505,15 @@ export default function SwiftCopyDashboard() {
                       <ShieldCheck className="w-4 h-4 text-green-500" />
                       <span className="text-xs font-bold uppercase">Migration Integrity: 100% Verified</span>
                     </div>
-                    <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/30">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-7 text-[10px] gap-1 border-primary/30 hover:bg-primary hover:text-primary-foreground transition-all"
+                      onClick={() => {
+                        toast.info("Generating Audit Report", { description: "Compiling cryptographic proofs and compliance logs..." });
+                        setTimeout(() => toast.success("Report Ready", { description: "SwiftCopy_Audit_Log_2026.pdf generated." }), 2000);
+                      }}
+                    >
                       <FileText className="w-3 h-3" />
                       GENERATE AUDIT REPORT
                     </Button>
@@ -635,17 +534,41 @@ export default function SwiftCopyDashboard() {
                       </Card>
                     ))}
                   </div>
-                  <div className="mt-6 p-4 bg-secondary/20 rounded-lg border border-border/50">
-                    <h4 className="text-xs font-bold uppercase mb-2 flex items-center gap-2">
-                      <ShieldCheck className="w-3 h-3 text-primary" />
-                      Fidelity Verification Log
-                    </h4>
-                    <div className="space-y-2 font-mono text-[10px] text-muted-foreground">
-                      <p>[02:06:19] INFO: Initializing BackupRead pipeline for NTFS ADS preservation...</p>
-                      <p>[02:06:20] INFO: SE_BACKUP_NAME privilege acquired successfully.</p>
-                      <p>[02:06:21] WARN: Sharing violation on Database.mdf. Initiating VSS snapshot...</p>
-                      <p>[02:06:22] INFO: VSS Snapshot {`{VSS-001}`} created on Volume C:.</p>
-                      <p>[02:06:23] INFO: ACL/DACL/SACL descriptors read for 142 objects.</p>
+                  <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-4 bg-secondary/20 rounded-lg border border-border/50">
+                      <h4 className="text-xs font-bold uppercase mb-2 flex items-center gap-2">
+                        <ShieldCheck className="w-3 h-3 text-primary" />
+                        Fidelity Verification Log
+                      </h4>
+                      <div className="space-y-2 font-mono text-[10px] text-muted-foreground">
+                        <p>[02:06:19] INFO: Initializing BackupRead pipeline for NTFS ADS preservation...</p>
+                        <p>[02:06:20] INFO: SE_BACKUP_NAME privilege acquired successfully.</p>
+                        <p>[02:06:21] WARN: Sharing violation on Database.mdf. Initiating VSS snapshot...</p>
+                        <p>[02:06:22] INFO: VSS Snapshot {`{VSS-001}`} created on Volume C:.</p>
+                        <p>[02:06:23] INFO: ACL/DACL/SACL descriptors read for 142 objects.</p>
+                      </div>
+                    </div>
+                    <div className="p-4 bg-secondary/20 rounded-lg border border-border/50">
+                      <h4 className="text-xs font-bold uppercase mb-3 flex items-center gap-2">
+                        <Database className="w-3 h-3 text-primary" />
+                        Compliance Frameworks
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { name: 'HIPAA', status: 'Compliant', desc: 'Protected Health Info' },
+                          { name: 'SOC2 Type II', status: 'Audited', desc: 'Trust Services Criteria' },
+                          { name: 'GDPR', status: 'Compliant', desc: 'Data Sovereignty' },
+                          { name: 'ISO 27001', status: 'Certified', desc: 'InfoSec Management' },
+                        ].map((framework, i) => (
+                          <div key={framework.name} className="p-2 bg-black/20 rounded border border-border/30 flex flex-col gap-1">
+                            <div className="flex justify-between items-center">
+                              <span className="text-[10px] font-bold">{framework.name}</span>
+                              <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]" />
+                            </div>
+                            <span className="text-[8px] text-muted-foreground leading-tight">{framework.desc}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </TabsContent>
