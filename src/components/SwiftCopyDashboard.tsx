@@ -560,7 +560,8 @@ export default function SwiftCopyDashboard() {
                       <div className="space-y-3">
                         {[
                           { label: 'Shell Extension', status: 'Registered', desc: 'Explorer Context Menu (IContextMenu)' },
-                          { label: 'I/O Backend', status: 'Rust (windows-rs)', desc: 'Memory-safe IOCP Implementation' },
+                          { label: 'Service Model', status: 'Elevated', desc: 'Background Service (Named Pipes)' },
+                          { label: 'I/O Backend', status: 'Rust (windows-rs)', desc: 'Throttled IPC & Batching' },
                           { label: 'Priority Class', status: 'High', desc: 'Process scheduling priority' },
                           { label: 'VSS Provider', status: 'Active', desc: 'Volume Shadow Copy integration' },
                         ].map((item, i) => (
@@ -577,24 +578,24 @@ export default function SwiftCopyDashboard() {
                     <div className="space-y-4">
                       <h4 className="text-xs font-bold uppercase flex items-center gap-2">
                         <Shield className="w-3 h-3 text-primary" />
-                        Privilege Escalation
+                        Privilege & Security
                       </h4>
                       <div className="p-4 bg-secondary/30 rounded-lg border border-border/50 space-y-3">
                         <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="text-muted-foreground">SE_BACKUP_NAME</span>
-                          <span className="text-green-500">GRANTED</span>
+                          <span className="text-muted-foreground">SERVICE_MODE</span>
+                          <span className="text-primary">ELEVATED_DAEMON</span>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="text-muted-foreground">SE_RESTORE_NAME</span>
-                          <span className="text-green-500">GRANTED</span>
+                          <span className="text-muted-foreground">AUTH_SIGNING</span>
+                          <span className="text-green-500">AUTHENTICODE_OK</span>
                         </div>
                         <div className="flex items-center justify-between text-[10px] font-mono">
-                          <span className="text-muted-foreground">SE_MANAGE_VOLUME</span>
-                          <span className="text-amber-500">PENDING_UAC</span>
+                          <span className="text-muted-foreground">IPC_CHANNEL</span>
+                          <span className="text-blue-500">THROTTLED_250MS</span>
                         </div>
                         <Separator className="bg-border/50" />
                         <p className="text-[10px] text-muted-foreground leading-relaxed italic">
-                          Native installation requires administrative privileges to register the COM server for Explorer integration and to acquire backup tokens for locked file access.
+                          Architecture uses an elevated background service to minimize UAC friction. Frontend communicates via throttled named pipes to prevent IPC bottlenecks.
                         </p>
                       </div>
                       <Button 
@@ -751,8 +752,8 @@ export default function SwiftCopyDashboard() {
               Verified Migration Loop
             </h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              SwiftCopy Enterprise utilizes a memory-safe Rust backend with BLAKE3 cryptographic verification. 
-              Compliance is guaranteed via immutable audit logs and full NTFS metadata preservation (ADS/ACLs).
+              SwiftCopy Enterprise utilizes a memory-safe Rust backend with decoupled data/metadata pipelines. 
+              IPC is throttled to 250ms to ensure UI stability during high-frequency I/O events.
             </p>
           </div>
         </div>
@@ -797,11 +798,11 @@ export default function SwiftCopyDashboard() {
             <div className="bg-black/40 p-3 rounded border border-border/30 h-32 overflow-hidden">
               <div className="text-[9px] text-muted-foreground space-y-1 animate-in fade-in slide-in-from-bottom-2">
                 <p className="text-primary/70">{`> regsvr32 /s swift_shell_ext.dll`}</p>
-                <p>{`> sc create SwiftCopyEngine binPath= "C:\\Program Files\\SwiftCopy\\engine.exe"`}</p>
+                <p>{`> sc create SwiftCopyEngine binPath= "C:\\Program Files\\SwiftCopy\\engine.exe" start= auto`}</p>
                 <p>{`> net start SwiftCopyEngine`}</p>
-                {installProgress > 40 && <p className="text-green-500/70">{`> SUCCESS: IOCP Handle 0x000004FC mapped.`}</p>}
-                {installProgress > 70 && <p className="text-green-500/70">{`> SUCCESS: SE_BACKUP_NAME privilege acquired.`}</p>}
-                {installProgress === 100 && <p className="text-primary font-bold">{`> INSTALLATION COMPLETE. RESTART EXPLORER.EXE TO APPLY.`}</p>}
+                {installProgress > 40 && <p className="text-green-500/70">{`> SUCCESS: Named Pipe \\\\.\\pipe\\SwiftCopyIPC established.`}</p>}
+                {installProgress > 70 && <p className="text-green-500/70">{`> SUCCESS: Authenticode signature verified.`}</p>}
+                {installProgress === 100 && <p className="text-primary font-bold">{`> INSTALLATION COMPLETE. SERVICE RUNNING AS SYSTEM.`}</p>}
               </div>
             </div>
           </div>
