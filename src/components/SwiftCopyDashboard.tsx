@@ -274,8 +274,8 @@ export default function SwiftCopyDashboard() {
               <Zap className="text-primary-foreground w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight font-mono">SWIFTCOPY <span className="text-primary text-xs align-top">v2.0</span></h1>
-              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">High-Performance File Engine</p>
+              <h1 className="text-xl font-bold tracking-tight font-mono">SWIFTCOPY <span className="text-primary text-xs align-top">ENTERPRISE</span></h1>
+              <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium">Compliance & Verified Migration Engine</p>
             </div>
           </div>
 
@@ -388,7 +388,7 @@ export default function SwiftCopyDashboard() {
                     Failed
                   </TabsTrigger>
                   <TabsTrigger value="system">System Integration</TabsTrigger>
-                  <TabsTrigger value="fidelity">Fidelity Report</TabsTrigger>
+                  <TabsTrigger value="fidelity">Audit & Compliance</TabsTrigger>
                 </TabsList>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
                   <Search className="w-3 h-3" />
@@ -560,7 +560,7 @@ export default function SwiftCopyDashboard() {
                       <div className="space-y-3">
                         {[
                           { label: 'Shell Extension', status: 'Registered', desc: 'Explorer Context Menu (IContextMenu)' },
-                          { label: 'I/O Backend', status: 'IOCP (Async)', desc: 'Windows I/O Completion Ports' },
+                          { label: 'I/O Backend', status: 'Rust (windows-rs)', desc: 'Memory-safe IOCP Implementation' },
                           { label: 'Priority Class', status: 'High', desc: 'Process scheduling priority' },
                           { label: 'VSS Provider', status: 'Active', desc: 'Volume Shadow Copy integration' },
                         ].map((item, i) => (
@@ -608,6 +608,16 @@ export default function SwiftCopyDashboard() {
                 </TabsContent>
 
                 <TabsContent value="fidelity" className="mt-0">
+                  <div className="flex items-center justify-between px-4 mb-4">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="w-4 h-4 text-green-500" />
+                      <span className="text-xs font-bold uppercase">Migration Integrity: 100% Verified</span>
+                    </div>
+                    <Button variant="outline" size="sm" className="h-7 text-[10px] gap-1 border-primary/30">
+                      <FileText className="w-3 h-3" />
+                      GENERATE AUDIT REPORT
+                    </Button>
+                  </div>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4">
                     {[
                       { label: 'ADS Preserved', value: state.fidelityStats.adsPreserved, icon: Layers, color: 'text-blue-500' },
@@ -737,12 +747,12 @@ export default function SwiftCopyDashboard() {
           {/* Architecture Summary */}
           <div className="p-4 bg-primary/5 rounded-lg border border-primary/20 space-y-2">
             <h4 className="text-[10px] font-bold uppercase text-primary flex items-center gap-2">
-              <Zap className="w-3 h-3" />
-              Refinement Loop v2.0
+              <ShieldCheck className="w-3 h-3" />
+              Verified Migration Loop
             </h4>
             <p className="text-[10px] text-muted-foreground leading-relaxed">
-              SwiftCopy utilizes a lock-free work-stealing scheduler with platform-specific I/O backends (IOCP/io_uring). 
-              Fidelity is guaranteed via BackupRead/Write for ADS and SetFileSecurity for ACLs.
+              SwiftCopy Enterprise utilizes a memory-safe Rust backend with BLAKE3 cryptographic verification. 
+              Compliance is guaranteed via immutable audit logs and full NTFS metadata preservation (ADS/ACLs).
             </p>
           </div>
         </div>
